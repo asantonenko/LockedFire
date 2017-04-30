@@ -1,4 +1,4 @@
-<html>
+﻿<html>
 	<head>
 	<style>
 	#mapid { height: 180px; }
@@ -12,7 +12,7 @@
 	<body>
 	<div id="mapid" style="width: 600px; height: 400px;"></div>
 	<script>
-		var mymap = L.map('mapid').setView([51.505, -0.09], 13);
+		var mymap = L.map('mapid').setView([-5.1037, -65.3438], 10);
 
 		L.tileLayer
 		(
@@ -66,9 +66,9 @@
 
 	function set_pulsar(x, y)
 	{
-		var newcircle = set_circle(x, y, 'red', 'red', 0.2, 50);
+		var newcircle = set_circle(x, y, 'yellow', 'yellow', 0.25, 3);
 		newcircle.addTo(mymap);
-		move(newcircle, 9, 5, 4, 300);
+		pulse(newcircle, 9, 5, 4, 300);
 	}
 
 	function set_safe_pulsar(x, y)
@@ -119,33 +119,53 @@
 		return newcircle;
 	}
 	
-	/*
-	function core()
+	
+	function core(x, y, id)
 	{
-		
-	}
-	*/
-	function router()
-	{
-		
-	}
-
-
-
-	function sensor(x, y, id)
-	{
-		var newsensor =
+		var newcore =
 		{
-			circ: set_circle(x, y, 'blue', 'blue', 0.2, 20),
+			circ: set_circle(x, y, 'yellow', 'yellow', 0.2, 20),
 			x: x,
 			y: y,
 			id: id
 		};
 		//alert("dot (x, y) = ("+x+", "+y+").");
+		return newcore;
+	}
+
+	function router(x, y, id)
+	{
+		var newrouter =
+		{
+			circ: set_circle(x, y, 'gray', 'gray', 0.2, 20),
+			x: x,
+			y: y,
+			id: id
+		};
+		//alert("dot (x, y) = ("+x+", "+y+").");
+		return newrouter;
+	}
+
+	function sensor(x, y, id)
+	{
+		var newsensor =
+		{
+			circ: set_circle(x, y, 'blue', 'blue', 0.2, 60),
+			x: x,
+			y: y,
+			id: id,
+			active: false,
+			activate : function()
+			{
+				this.active = true;
+				this.circ.removeFrom(mymap);
+				this.circ = set_circle(this.x, this.y, 'orange', 'orange', 0.2, 60).addTo(mymap);
+			}
+		};
 		return newsensor;
 	}
 
-	function set_on_fire(sensor, step)
+	/*function set_on_fire(sensor, step)
 	{
 		newsensor1.circ.removeFrom(mymap);
 		sensor.circ = set_circle(sensor.x, sensor.y, 'red', 'red', 0.3, 0);
@@ -157,40 +177,175 @@
 			sensor.circ.setRadius(radius);
 		}
 		setInterval(f, 80);
+	}*/
+	
+	function set_flame(x, y, speed)
+	{
+		var flame = set_circle(x, y, 'red', 'red', 0.3, 0);
+		flame.addTo(mymap);
+		var radius = 0;
+		function f()
+		{
+			radius+=speed;
+			flame.setRadius(radius);
+		}
+		setInterval(f, 80);
 	}
 
 	function newlink(A, B)
 	{
 		var latlngs = [L.latLng(A.y, A.x), L.latLng(B.y, B.x)];
-		var line = L.polyline(latlngs, {color: 'green'});
+		var line = L.polyline(latlngs, {color: 'green', opacity: 0.4});
 		//alert("Adot (x, y) = ("+A.x+", "+A.y+"); Bdot (x, y) = ("+B.x+", "+B.y+")");
 		return line;
 	}
 
-	var newsensor1 = sensor(-0.09, 51.5, "timur");
+	function calc_h(dist)
+	{
+		p = 3*dist/2;
+		return 2*Math.sqrt(p*(p-dist)*(p-dist)*(p-dist))/dist;
+	}
+
+	function set_square(x, y, weight, height, dist)
+	{
+		var arr = [];
+		var num = 0;
+		var id = 2257;
+		//x -= width/2;
+		//y -= height/2;
+		for (var i = 0; i > -height; i -= dist)
+		{
+			for (var j = 0; j < weight; j += dist)
+			{
+				//if ((i == j) && (i == 0)) put_marker(j+x, i+y);
+				var newsensor = sensor(j+x, i+y, ++id);
+				arr.push(newsensor);
+				arr[num++].circ.addTo(mymap);
+			}
+		}
+		return arr;
+	}
+
+	function metric(A, B)
+	{
+		 /*return Math.sqrt((A.x - B.x)*(A.x - B.x) + (A.y - B.y)*(A.y - B.y));*/
+		 var latlngA = L.latLng (A.x, A.y);
+		 var latlngB = L.latLng (B.x, B.y);
+		 return latlngA.distanceTo(latlngB);
+	}
+	
+	function moveCoordinatesByMetres(latLng, m)
+	{
+		var pi = Math.PI;
+		//Earth’s radius, sphere
+		var R = 6378137;
+		// latLng to transform
+		var lat = latLng[0] || latLng.lat;
+		var lng = latLng[1] || latLng.lng;
+ 
+		//Coordinate offsets in radians
+		var dLat = m[0] / R;
+		var dLng = m[1] / ( R * Math.cos(pi * lat / 180) );
+ 
+		//OffsetPosition, decimal degrees
+		lat = lat + ( dLat * 180 / pi );
+		lng = lng + ( dLng * 180 / pi );
+
+		return [lat, lng];
+	}
+	
+//	function dustance_betv_sensors(A, B)
+//	{
+//		var latLng1 = [A.x, A.y];
+//		var latLng2 = [B.x, B.y];
+//		return latLng1.distanceTo(latLng2)
+//	}
+	
+	function set_chess(x, y, weight, height, dist)
+	{
+		//dist *= 0.0009;
+		var start = [x,y];
+		var arr = [];
+		var num = 0;
+		var id = 2257;
+		var sign = 1;
+		for (var i = 0; i <= height; i += calc_h(dist))
+		{
+			sign *= -1;
+			for (var j = 0+sign*dist/4; j < weight; j += dist)
+			{
+				//if ((i == j) && (i == 0)) put_marker(j+x, i+y);
+				var curr = moveCoordinatesByMetres (start, [i,j]);
+				var newsensor = sensor(curr[0], curr[1], ++id);
+				arr.push(newsensor);
+				arr[num++].circ.addTo(mymap);
+			}
+//			if (sign > 0) 
+//			{
+//				var curr = moveCoordinatesByMetres (start, [3*dist/4, 0]);
+//				var newsensor = sensor(curr[0], curr[1], ++id);
+//				arr.push(newsensor);
+//				arr[num++].circ.addTo(mymap);
+//			}
+		}
+
+		for (var i = 0; i < arr.length; ++i)
+		{
+			for (var j = i+1; j < arr.length; ++j)
+			{
+				if (metric(arr[i], arr[j]) <= dist+0.00001)
+				{
+					newlink(arr[i], arr[j]).addTo(mymap);
+				}
+			}
+		}
+
+		return arr;
+	}
+
+	
+	//var x_begin = 
+	
+
+	/*var newsensor1 = sensor(-64.3438, -5.1037, "timur");
 	newsensor1.circ.addTo(mymap);
 
-	//alert("Adot (x, y) = ("+newsensor1.x+", "+newsensor1.y+")");
-	//alert("Adot (x, y) = ("+newsensor1.x+", "+newsensor1.y+"); Bdot (x, y) = ("+newsensor2.x+", "+newsensor2.y+")");
+	var newsensor2 = sensor(-65.3438, -5.1037, "dog");
+	newsensor2.circ.addTo(mymap);*/
 
-	var newsensor2 = sensor(-0.0905, 51.505, "dog");
-	newsensor2.circ.addTo(mymap);
-	
-		
-	var line = newlink(newsensor1, newsensor2).addTo(mymap);
-	
-	//newsensor1.circ = set_circle(x, y, 'red', 'red', 0.3, 40).addTo(mymap);
-	//newsensor1.circ
-	//set_circle(-0.09, 51.5, 'red', 'red', 0.3, 40).addTo(mymap);
-	
-	set_on_fire(newsensor1, 0.3);
+	var dist1 = 120;
 
-	/*
-	autoupdate;
-	read {BASE}
-	for (id)
-		display(sh, dg);
-	*/
+	var arr = set_chess(-65.3438, -5.1037, 2000, 2000, dist1);
+
+	function setcore(arr, dist)
+	{
+		var p = [arr[arr.length-2].x, arr[arr.length-2].y];
+		p = moveCoordinatesByMetres (p, [dist, 0]);
+		var CORE1 = core(p[0], p[1], "MAP");
+		CORE1.circ.addTo(mymap);
+		newlink(CORE1, arr[arr.length-2]).addTo(mymap);
+		newlink(CORE1, arr[arr.length-3]).addTo(mymap);
+		newlink(CORE1, arr[arr.length-1]).addTo(mymap)
+		return CORE1;
+	}
+
+	var Our_Core = setcore(arr, dist1);
+
+	var x_flame = -65.33154, y_flame = -5.08573;
+	set_flame(x_flame, y_flame, 0.2);
+
+	//set_multipulsar(Our_Core.x, Our_Core.y, 7);
+
+	
+
+
+	/*;
+	//var CORE1 = core(-64.3439, -5.1038, "MAP");
+	CORE1.circ.addTo(mymap);*/
+	//set_square(-64.3438, -5.1037, 10, 10, 3);
+
+	
+
 	</script>
 	</body>
 </html>
